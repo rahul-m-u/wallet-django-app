@@ -12,14 +12,14 @@
 1. Migrate the DB By giving "python manage.py migrate"
 ```
 
-## Run Project
-```
-1. Use command "python manage.py runserver" to run the project
-```
-
 ## Create User
 ```
 1. Use command "python manage.py createsuperuser: to create a user
+```
+
+## Run Project
+```
+1. Use command "python manage.py runserver" to run the project
 ```
 
 ## URLS
