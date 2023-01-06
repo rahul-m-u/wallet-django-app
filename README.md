@@ -14,7 +14,7 @@
 
 ## Create User
 ```
-1. Use command "python manage.py createsuperuser: to create a user
+1. Use command "python manage.py createsuperuser" to create a user
 ```
 
 ## Run Project
