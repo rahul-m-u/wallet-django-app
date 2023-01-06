@@ -7,6 +7,7 @@ from rest_framework.authentication import TokenAuthentication, SessionAuthentica
 from wallet.forms import InitializeWalletForm
 from wallet.forms import WalletDeposit
 from wallet.forms import WalletWithdraw
+from wallet.forms import DisableWallet
 from wallet.models import Wallet
 from wallet.models import Transaction
 from wallet.views.utils import wallet_data
@@ -30,7 +31,8 @@ class WalletAPIView(APIView):
         return form
 
     def get_user_wallet(self, request):
-        return Wallet.get_user_wallet(request.user)
+        wallet = Wallet.get_user_wallet(request.user)
+        return wallet, True if wallet.status == 'Enabled' else False
 
 
 class InitializeWallet(WalletAPIView):
@@ -72,9 +74,9 @@ class InitializeWallet(WalletAPIView):
 class EnableMyWallet(WalletAPIView):
     def post(self, request):
 
-        wallet = self.get_user_wallet(request)
+        wallet, active = self.get_user_wallet(request)
 
-        if wallet.status in ['Initialized', 'Disabled']:
+        if not active:
             wallet.enable_wallet()
 
             response = {
@@ -84,8 +86,6 @@ class EnableMyWallet(WalletAPIView):
                 }
             }
 
-            return Response(response)
-
         else:
             response = {
                 'status': 'fail',
@@ -94,23 +94,21 @@ class EnableMyWallet(WalletAPIView):
                 }
             }
 
-            return Response(response)
+        return Response(response)
 
 
 class ViewBalance(WalletAPIView):
     def get(self, request):
 
-        wallet = self.get_user_wallet(request)
+        wallet, active = self.get_user_wallet(request)
 
-        if wallet.status == 'Disabled':
+        if not active:
             response = {
                 'status': 'fail',
                 'data': {
                     'error': 'Wallet disabled'
                 }
             }
-
-            return Response(response)
 
         else:
             data = wallet_data(wallet, 'Enabled')
@@ -122,22 +120,20 @@ class ViewBalance(WalletAPIView):
                 }
             }
 
-            return Response(response)
+        return Response(response)
 
 
 class TransactionList(WalletAPIView):
     def get(self, request):
-        wallet = self.get_user_wallet(request)
+        wallet, active = self.get_user_wallet(request)
 
-        if wallet.status == 'Disabled':
+        if not active:
             response = {
                 'status': 'fail',
                 'data': {
                     'error': 'Wallet disabled'
                 }
             }
-
-            return Response(response)
 
         else:
             transaction = Transaction.objects.filter(wallet_owner_id=wallet.id)
@@ -151,7 +147,7 @@ class TransactionList(WalletAPIView):
                 }
             }
 
-            return Response(response)
+        return Response(response)
 
 
 class WalletDepositAPIView(WalletAPIView):
@@ -168,22 +164,30 @@ class WalletDepositAPIView(WalletAPIView):
                 }
             }
 
-            return Response(response)
-
         else:
-            amount = form.cleaned_data.get('amount')
-            wallet = self.get_user_wallet(request)
+            wallet, active = self.get_user_wallet(request)
 
-            deposit = Transaction.make_deposit(wallet, amount)
+            if active:
+                amount = form.cleaned_data.get('amount')
 
-            response = {
-                'status': 'success',
-                'data': {
-                    'deposit': transaction_data(deposit, 'Deposit')
+                deposit = Transaction.make_deposit(wallet, amount)
+
+                response = {
+                    'status': 'success',
+                    'data': {
+                        'deposit': transaction_data(deposit, 'Deposit')
+                    }
                 }
-            }
 
-            return Response(response)
+            else:
+                response = {
+                    'status': 'fail',
+                    'data': {
+                        'error': 'Wallet disabled'
+                    }
+                }
+
+        return Response(response)
 
 
 class WalletWithdrawAPIView(WalletAPIView):
@@ -200,36 +204,66 @@ class WalletWithdrawAPIView(WalletAPIView):
                 }
             }
 
+        else:
+            wallet, active = self.get_user_wallet(request)
+
+            if active:
+                amount = form.cleaned_data.get('amount')
+
+                withdraw = Transaction.make_withdrawal(wallet, amount)
+
+                response = {
+                    'status': 'success',
+                    'data': {
+                        'withdrawal': transaction_data(withdraw, 'Withdrawal')
+                    }
+                }
+
+            else:
+                response = {
+                    'status': 'fail',
+                    'data': {
+                        'error': 'Wallet disabled'
+                    }
+                }
+
+        return Response(response)
+
+
+class DisableMyWallet(WalletAPIView):
+    form_class = DisableWallet
+
+    def patch(self, request):
+        form = self.get_form(request)
+
+        if not form.is_valid():
+            response = {
+                'status': 'fail',
+                'data': {
+                    'error': form.errors
+                }
+            }
             return Response(response)
 
-        else:
-            amount = form.cleaned_data.get('amount')
-            wallet = self.get_user_wallet(request)
+        wallet, active = self.get_user_wallet(request)
 
-            withdraw = Transaction.make_withdrawal(wallet, amount)
+        if active:
+            wallet.disable_wallet()
 
             response = {
                 'status': 'success',
                 'data': {
-                    'withdrawal': transaction_data(withdraw, 'Withdrawal')
+                    'wallet': wallet_data(wallet, 'Disabled')
                 }
             }
 
-            return Response(response)
-
-
-class DisableMyWallet(WalletAPIView):
-    def patch(self, request):
-
-        wallet = self.get_user_wallet(request)
-        wallet.disable_wallet()
-
-        response = {
-            'status': 'success',
-            'data': {
-                'wallet': wallet_data(wallet, 'Disabled')
+        else:
+            response = {
+                'status': 'fail',
+                'data': {
+                    'error': 'Already disabled'
+                }
             }
-        }
 
         return Response(response)
 

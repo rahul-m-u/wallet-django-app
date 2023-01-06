@@ -24,17 +24,23 @@ class WalletWithdraw(forms.Form):
     amount = forms.IntegerField()
 
     def __init__(self, *args, **kwargs):
-        self.wallet = kwargs.pop('wallet')
+        self.wallet, self.active = kwargs.pop('wallet')
         forms.Form.__init__(self, *args, **kwargs)
 
     def clean_amount(self):
         amount = self.cleaned_data['amount']
+
+        if not self.active:
+            raise forms.ValidationError("Your wallet is disabled")
 
         if amount > self.wallet.balance:
             raise forms.ValidationError("You don't have enough balance")
 
         return amount
 
+
+class DisableWallet(forms.Form):
+    is_disabled = forms.BooleanField(required=True)
 
 
 
